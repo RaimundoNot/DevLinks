@@ -3,7 +3,7 @@ const cors = require('cors');
 const admin = require('firebase-admin');
 const path = require('path');
 
-// Inicializa Firebase Admin com a chave privada
+// Inicializa Firebase Admin
 const serviceAccount = require(path.join(__dirname, '../serviceAccountKey.json'));
 
 admin.initializeApp({
@@ -11,12 +11,43 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+const auth = admin.auth();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Rota de teste: salvar link de usuário
+// ---------------- Rotas de autenticação ----------------
+
+// Cadastro de usuário
+app.post('/signup', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const userRecord = await auth.createUser({ email, password });
+    res.send({ uid: userRecord.uid, email: userRecord.email });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Erro ao criar usuário' });
+  }
+});
+
+// Login de usuário (gera token customizado)
+app.post('/login', async (req, res) => {
+  const { uid } = req.body;
+
+  try {
+    const token = await auth.createCustomToken(uid);
+    res.send({ token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Erro ao gerar token' });
+  }
+});
+
+// ---------------- Rotas de links ----------------
+
+// Salvar link
 app.post('/users/:uid/links', async (req, res) => {
   const { uid } = req.params;
   const { url, title } = req.body;
@@ -30,7 +61,7 @@ app.post('/users/:uid/links', async (req, res) => {
   }
 });
 
-// Rota de teste: listar links
+// Listar links
 app.get('/users/:uid/links', async (req, res) => {
   const { uid } = req.params;
 
@@ -44,5 +75,39 @@ app.get('/users/:uid/links', async (req, res) => {
   }
 });
 
+// ---------------- Inicialização ----------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
+// Middleware para verificar token
+async function verificarToken(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1]; // "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).send({ error: 'Token não fornecido' });
+  }
+
+  try {
+    const decodedToken = await auth.verifyIdToken(token);
+    req.uid = decodedToken.uid; // guarda o UID do usuário
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(401).send({ error: 'Token inválido' });
+  }
+}
+
+// Rotas protegidas
+app.post('/users/:uid/links', verificarToken, async (req, res) => {
+  if (req.uid !== req.params.uid) {
+    return res.status(403).send({ error: 'Acesso negado' });
+  }
+  // ... salvar link
+});
+
+app.get('/users/:uid/links', verificarToken, async (req, res) => {
+  if (req.uid !== req.params.uid) {
+    return res.status(403).send({ error: 'Acesso negado' });
+  }
+  // ... listar links
+});
