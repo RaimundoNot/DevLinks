@@ -75,6 +75,23 @@ app.get('/users/:uid/links', async (req, res) => {
   }
 });
 
+// Excluir link
+app.delete('/users/:uid/links/:linkId', verificarToken, async (req, res) => {
+  if (req.uid !== req.params.uid) {
+    return res.status(403).send({ error: 'Acesso negado' });
+  }
+
+  const { uid, linkId } = req.params;
+
+  try {
+    await db.collection('users').doc(uid).collection('links').doc(linkId).delete();
+    res.send({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Erro ao excluir link' });
+  }
+});
+
 // ---------------- Inicialização ----------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
@@ -102,7 +119,24 @@ app.post('/users/:uid/links', verificarToken, async (req, res) => {
   if (req.uid !== req.params.uid) {
     return res.status(403).send({ error: 'Acesso negado' });
   }
-  // ... salvar link
+
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).send({ error: 'URL não fornecida' });
+  }
+
+  try {
+    const docRef = await db
+      .collection('users')
+      .doc(req.params.uid)
+      .collection('links')
+      .add({ url });
+
+    res.send({ id: docRef.id, url });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Erro ao salvar link' });
+  }
 });
 
 app.get('/users/:uid/links', verificarToken, async (req, res) => {

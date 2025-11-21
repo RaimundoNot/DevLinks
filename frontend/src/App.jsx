@@ -1,9 +1,11 @@
 import { useState } from "react";
+import Links from "./Links";
 
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState(null);
+  const [uid, setUid] = useState(null);
 
   const signup = async () => {
     const res = await fetch("http://localhost:3000/signup", {
@@ -12,6 +14,7 @@ function App() {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
+    setUid(data.uid);
     console.log("Signup:", data);
   };
 
@@ -19,12 +22,16 @@ function App() {
     const res = await fetch("http://localhost:3000/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: "COLOQUE_O_UID_AQUI" }),
+      body: JSON.stringify({ uid }),
     });
     const data = await res.json();
     setToken(data.token);
     console.log("Login:", data);
   };
+
+  if (token) {
+    return <Links uid={uid} token={token} />;
+  }
 
   return (
     <div style={{ padding: "2rem" }}>
@@ -43,8 +50,6 @@ function App() {
       /><br />
       <button onClick={signup}>Cadastrar</button>
       <button onClick={login}>Login</button>
-
-      {token && <p>Token: {token}</p>}
     </div>
   );
 }
